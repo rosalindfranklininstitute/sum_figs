@@ -1,0 +1,37 @@
+# SPDX-FileCopyrightText: 2026 RFI
+#
+# SPDX-License-Identifier: Apache-2.0
+
+[project]
+name = "sum-figs"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "McDougall", email = "Duncan.McDougall@rfi.ac.uk" }
+]
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "matplotlib>=3.10.8",
+    "ms-nexus-tools",
+    "numpy>=2.4.3",
+    "scipy>=1.17.1",
+]
+license = "Apache-2.0"
+license-files = ["LICENSES/*"]
+
+[project.scripts]
+main = "sum_figs:main"
+
+[build-system]
+requires = ["uv_build>=0.10.11,<0.11.0"]
+build-backend = "uv_build"
+
+[tool.uv.sources]
+ms-nexus-tools = { path = "../ms-nexus-tools", editable = true }
+
+[dependency-groups]
+dev = [
+    "icecream>=2.1.10",
+    "pyinstaller>=6.19.0",
+]
