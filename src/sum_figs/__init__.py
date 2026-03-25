@@ -18,7 +18,9 @@ from dataclasses import fields
 def main() -> None:
     partial_args = collect_figs.ProcessArgs.parse_config("figs")
     process_args = collect_figs.ProcessArgs.parse_interactive(
-        "figs", partial_args.remaining_args
+        "figs",
+        exclude=["config"],
+        args=partial_args.remaining_args,
     )
 
     collect_figs.process(process_args, partial_args.config)
