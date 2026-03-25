@@ -44,7 +44,17 @@ class ProcessArgs(ConfigFileArgs, NoInteractiveArgs):
     colormap: str = arg_field(
         "--color-map",
         doc="The color map to use for the plotting. If not specified tries to find one in the fig file.",
-        default=None,
+        choices=[
+            "viridis",
+            "plasma",
+            "inferno",
+            "magma",
+            "cividis",
+            "grey",
+            "gray",
+            "auto",
+        ],
+        default="auto",
     )
 
     min_mass: float = arg_field(
@@ -191,7 +201,7 @@ def process(args: ProcessArgs, config: dict[str, Any] = {}):
             if not found_data:
                 print(f"-> Did not find any 2d data in {file.name}")
 
-    colormap = args.colormap.strip("\"'") if args.colormap else None
+    colormap = args.colormap.strip("\"'")
     shape = None
     total_colormap = None
     can_use_colormap = False
@@ -208,12 +218,40 @@ def process(args: ProcessArgs, config: dict[str, Any] = {}):
             can_use_colormap = total_colormap == plot_data.colormap
             assert total_extent == (*plot_data.xlim, *plot_data.ylim)
 
+    assert can_use_colormap or (colormap != "auto")
+    assert shape is not None and total_extent is not None
+
+    total_image = np.sum([img[0].data for img in images], axis=0)
+
+    if args.interactive:
+        percentiles = np.percentile(total_image, [2, 98])
+
+        min, max, should_plot = show_interactively(
+            total_image,
+            colormap if colormap != "auto" else total_colormap,
+            args.min_mass if args.min_mass is not None else percentiles[0],
+            args.max_mass if args.max_mass is not None else percentiles[1],
+            total_extent,
+            origin=args.origin,
+        )
+    else:
+        should_plot = True
+        percentiles = np.percentile(total_image, [0, 100])
+        min = args.min_mass if args.min_mass is not None else percentiles[0]
+        max = args.max_mass if args.max_mass is not None else percentiles[1]
+
+    if not should_plot:
+        print("Canceled")
+        return
+
+    for ii, plot_data in enumerate(images):
+        image = plot_data.child.data
         fig, ax = plt.subplots(figsize=(12, 12))
         ax.set_title(plot_data.path.name)
         im = ax.imshow(
             image,
             cmap=plot_data.colormap
-            if args.independent_colors or colormap is None
+            if args.independent_colors or colormap == "auto"
             else colormap,
             vmin=plot_data.clim[0] if args.independent_scales else args.min_mass,
             vmax=plot_data.clim[1] if args.independent_scales else args.max_mass,
@@ -226,33 +264,12 @@ def process(args: ProcessArgs, config: dict[str, Any] = {}):
 
         np.savetxt(args.out_path / f"{plot_data.path.stem}.csv", image, delimiter=",")
 
-    assert can_use_colormap or (colormap is not None)
-    assert shape is not None and total_extent is not None
-
-    total_image = np.sum([img[0].data for img in images], axis=0)
     np.savetxt(args.out_path / "Total Image.csv", total_image, delimiter=",")
-
-    if args.interactive:
-        percentiles = np.percentile(total_image, [2, 98])
-
-        min, max = show_interactively(
-            total_image,
-            colormap if colormap is not None else total_colormap,
-            args.min_mass if args.min_mass is not None else percentiles[0],
-            args.max_mass if args.max_mass is not None else percentiles[1],
-            total_extent,
-            origin=args.origin,
-        )
-    else:
-        percentiles = np.percentile(total_image, [0, 100])
-        min = args.min_mass if args.min_mass is not None else percentiles[0]
-        max = args.max_mass if args.max_mass is not None else percentiles[1]
-
     fig, ax = plt.subplots(figsize=(12, 12))
     ax.set_title(f"Total Image ({min:.2g} - {max:.2g})")
     im = ax.imshow(
         total_image,
-        cmap=colormap if colormap is not None else total_colormap,
+        cmap=colormap if colormap != "auto" else total_colormap,
         vmin=min,
         vmax=max,
         extent=total_extent,
