@@ -12,10 +12,9 @@ authors = [
 ]
 requires-python = ">=3.12,<3.14"
 dependencies = [
+    "datargs",
     "matplotlib>=3.10.8",
-    "ms-nexus-tools",
     "numpy>=2.4.3",
-    "pyside6>=6.10.2",
     "scipy>=1.17.1",
 ]
 license = "Apache-2.0"
@@ -28,11 +27,11 @@ main = "sum_figs:main"
 requires = ["uv_build>=0.10.11,<0.11.0"]
 build-backend = "uv_build"
 
-[tool.uv.sources]
-ms-nexus-tools = { path = "../ms-nexus-tools", editable = true }
-
 [dependency-groups]
 dev = [
     "icecream>=2.1.10",
     "pyinstaller>=6.19.0",
 ]
+
+[tool.uv.sources]
+datargs = { path = "../datargs", editable = true }

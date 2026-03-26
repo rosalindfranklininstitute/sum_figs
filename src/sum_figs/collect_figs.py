@@ -12,7 +12,7 @@ from matplotlib.colors import ListedColormap
 import scipy
 import numpy as np
 
-from ms_nexus_tools.api.args import (
+from datargs import (
     arg_field,
     ArgType,
     ConfigFileArgs,

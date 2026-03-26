@@ -5,14 +5,9 @@
 import argparse
 import matplotlib
 
-from ms_nexus_tools.api import args as nxargs
-
 from . import collect_figs
 
 matplotlib.use("QtAgg")
-
-from icecream import ic
-from dataclasses import fields
 
 
 def main() -> None:
