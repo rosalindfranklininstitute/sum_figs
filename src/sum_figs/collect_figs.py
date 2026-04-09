@@ -15,12 +15,7 @@ from matplotlib.colors import ListedColormap
 import scipy
 import numpy as np
 
-from datargs import (
-    arg_field,
-    ArgType,
-    ConfigFileArgs,
-    NoInteractiveArgs,
-)
+from datargs import arg_field, ArgType, ConfigFileArgs, NoInteractiveArgs, DirPathType
 
 from .interactive_total import show_interactively
 
@@ -38,6 +33,7 @@ class ProcessArgs(ConfigFileArgs, NoInteractiveArgs):
         arg_type=ArgType.EXPLICIT_ONLY,
         doc="The input directory.",
         default=None,
+        type=DirPathType(True),
     )
     out_path: Path = arg_field(
         "-o",
@@ -46,6 +42,7 @@ class ProcessArgs(ConfigFileArgs, NoInteractiveArgs):
         arg_type=ArgType.EXPLICIT_ONLY,
         doc="The output directory.",
         default=None,
+        type=DirPathType(True),
     )
 
     final_title: str = arg_field(
