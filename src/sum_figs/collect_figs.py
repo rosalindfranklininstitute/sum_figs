@@ -254,6 +254,8 @@ def process(args: ProcessArgs, config: dict[str, Any] = {}):
     total_colormap = None
     can_use_colormap = False
     total_extent = None
+    xlabel = None
+    ylabel = None
     for ii, plot_data in enumerate(images):
         image = plot_data.child.data
         if shape is None and total_colormap is None and total_extent is None:
@@ -261,10 +263,16 @@ def process(args: ProcessArgs, config: dict[str, Any] = {}):
             total_colormap = plot_data.colormap
             can_use_colormap = True
             total_extent = (*plot_data.xlim, *plot_data.ylim)
+            xlabel = plot_data.xlabel
+            ylabel = plot_data.ylabel
         else:
             assert shape == image.shape
             can_use_colormap = total_colormap == plot_data.colormap
             assert total_extent == (*plot_data.xlim, *plot_data.ylim)
+            if xlabel != plot_data.xlabel:
+                xlabel = None
+            if ylabel != plot_data.ylabel:
+                ylabel = None
 
     assert can_use_colormap or (colormap != "auto")
     assert shape is not None and total_extent is not None
@@ -320,6 +328,10 @@ def process(args: ProcessArgs, config: dict[str, Any] = {}):
     np.savetxt(args.out_path / "Total Image.csv", total_image, delimiter=",")
     fig, ax = plt.subplots(figsize=figsize)
     ax.set_title(f"Total Image ({min:.2g} - {max:.2g})")
+    if xlabel is not None:
+        ax.set_xlabel(xlabel)
+    if ylabel is not None:
+        ax.set_ylabel(ylabel)
     im = ax.imshow(
         total_image,
         cmap=colormap if colormap != "auto" else total_colormap,
