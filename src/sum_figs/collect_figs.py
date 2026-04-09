@@ -5,6 +5,7 @@
 from typing import Any, NamedTuple, Literal, cast
 from dataclasses import dataclass
 import logging
+import re
 
 from pathlib import Path
 
@@ -44,6 +45,12 @@ class ProcessArgs(ConfigFileArgs, NoInteractiveArgs):
         arg_type=ArgType.EXPLICIT_ONLY,
         doc="The output directory.",
         default=None,
+    )
+
+    final_title: str = arg_field(
+        "--title",
+        doc="The title to use on the final image. This is also used to derive its filename.",
+        default="Total Image",
     )
 
     colormap: str = arg_field(
@@ -245,7 +252,7 @@ def process(args: ProcessArgs, config: dict[str, Any] = {}):
                         images.append(Plot.from_child(mat, c, file))
                         found_data = True
 
-            print(file.name)
+            logger.info(file.name)
             if not found_data:
                 logger.warning(f"-> Did not find any 2d data in {file.name}")
 
@@ -297,7 +304,7 @@ def process(args: ProcessArgs, config: dict[str, Any] = {}):
         max = args.max_mass if args.max_mass is not None else percentiles[1]
 
     if not should_plot:
-        print("Canceled")
+        logger.info("Canceled")
         return
 
     figsize = (8, int((8 / shape[1]) * shape[0]))
@@ -320,14 +327,22 @@ def process(args: ProcessArgs, config: dict[str, Any] = {}):
         )
 
         fig.colorbar(im, ax=ax, location="right", use_gridspec=False)
-        fig.savefig(args.out_path / f"{plot_data.path.stem}.png")
+
+        path = args.out_path / f"{plot_data.path.stem}.fig.png"
+        if path.exists():
+            path = args.out_path / f"{plot_data.path.stem}.new.fig.png"
+
+        fig.savefig(path)
         plt.close(fig)
 
         np.savetxt(args.out_path / f"{plot_data.path.stem}.csv", image, delimiter=",")
 
-    np.savetxt(args.out_path / "Total Image.csv", total_image, delimiter=",")
+    file_title = args.final_title.replace(":", "-").replace("?", "")
+    file_title = re.sub(r"[^A-Za-z0-9+ ._-]", "_", file_title)
+    logger.info(f"Writing: summed image to {file_title}")
+    np.savetxt(args.out_path / f"{file_title}.total.csv", total_image, delimiter=",")
     fig, ax = plt.subplots(figsize=figsize)
-    ax.set_title(f"Total Image ({min:.2g} - {max:.2g})")
+    ax.set_title(args.final_title)
     if xlabel is not None:
         ax.set_xlabel(xlabel)
     if ylabel is not None:
@@ -341,4 +356,4 @@ def process(args: ProcessArgs, config: dict[str, Any] = {}):
         origin=args.origin,
     )
     fig.colorbar(im, ax=ax, location="right")
-    fig.savefig(args.out_path / "Total Image.png")
+    fig.savefig(args.out_path / f"{file_title}.total.png")

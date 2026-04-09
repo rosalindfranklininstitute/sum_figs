@@ -4,6 +4,7 @@
 
 import argparse
 import matplotlib
+import logging
 
 from . import collect_figs
 
@@ -11,6 +12,8 @@ matplotlib.use("QtAgg")
 
 
 def main() -> None:
+    logging.basicConfig(level=logging.INFO)
+
     partial_args = collect_figs.ProcessArgs.parse_config("figs")
     process_args = collect_figs.ProcessArgs.parse_interactive(
         "figs",
