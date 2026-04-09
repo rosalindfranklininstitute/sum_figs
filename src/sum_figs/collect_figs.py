@@ -5,6 +5,7 @@
 from typing import Any, NamedTuple, Literal, cast
 from dataclasses import dataclass
 import logging
+import builtins
 import re
 
 from pathlib import Path
@@ -308,6 +309,7 @@ def process(args: ProcessArgs, config: dict[str, Any] = {}):
         return
 
     figsize = (8, int((8 / shape[1]) * shape[0]))
+    aspect = builtins.min((20 / shape[1]) * shape[0], 20)
 
     for ii, plot_data in enumerate(images):
         image = plot_data.child.data
@@ -315,22 +317,30 @@ def process(args: ProcessArgs, config: dict[str, Any] = {}):
         ax.set_title(plot_data.title)
         ax.set_xlabel(plot_data.xlabel)
         ax.set_ylabel(plot_data.ylabel)
+        vmin = plot_data.clim[0] if args.independent_scales else args.min_mass
+        vmax = plot_data.clim[1] if args.independent_scales else args.max_mass
         im = ax.imshow(
             image,
             cmap=plot_data.colormap
             if args.independent_colors or colormap == "auto"
             else colormap,
-            vmin=plot_data.clim[0] if args.independent_scales else args.min_mass,
-            vmax=plot_data.clim[1] if args.independent_scales else args.max_mass,
+            vmin=vmin,
+            vmax=vmax,
             extent=(*plot_data.xlim, *plot_data.ylim),
             origin=args.origin,
         )
 
-        fig.colorbar(im, ax=ax, location="right", use_gridspec=False)
+        fig.colorbar(
+            im,
+            ax=ax,
+            location="right",
+            shrink=0.8,
+            format="%.2e",
+            ticks=np.linspace(vmin, vmax, 6),
+            aspect=aspect,
+        )
 
         path = args.out_path / f"{plot_data.path.stem}.fig.png"
-        if path.exists():
-            path = args.out_path / f"{plot_data.path.stem}.new.fig.png"
 
         fig.savefig(path)
         plt.close(fig)
@@ -355,5 +365,13 @@ def process(args: ProcessArgs, config: dict[str, Any] = {}):
         extent=total_extent,
         origin=args.origin,
     )
-    fig.colorbar(im, ax=ax, location="right")
+    fig.colorbar(
+        im,
+        ax=ax,
+        location="right",
+        shrink=0.8,
+        format="%.2e",
+        ticks=np.linspace(min, max, 6),
+        aspect=aspect,
+    )
     fig.savefig(args.out_path / f"{file_title}.total.png")
