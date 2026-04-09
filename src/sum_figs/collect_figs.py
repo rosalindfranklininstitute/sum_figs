@@ -4,6 +4,7 @@
 
 from typing import Any, NamedTuple, Literal, cast
 from dataclasses import dataclass
+import logging
 
 from pathlib import Path
 
@@ -20,6 +21,10 @@ from datargs import (
 )
 
 from .interactive_total import show_interactively
+
+from icecream import ic
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -103,6 +108,9 @@ class Plot(NamedTuple):
     clim: np.ndarray
     xlim: np.ndarray
     ylim: np.ndarray
+    title: str
+    xlabel: str
+    ylabel: str
 
     @staticmethod
     def from_child(mat, child: Child, path: Path) -> "Plot":
@@ -111,15 +119,26 @@ class Plot(NamedTuple):
         clim = get(mat, *keys, "properties", "CLim")
         xlim = get(mat, *keys, "properties", "XLim")
         ylim = get(mat, *keys, "properties", "YLim")
+        xlabel = get(mat, *keys, "children", 1, "properties", "String")
+        ylabel = get(mat, *keys, "children", 2, "properties", "String")
+        title = get(mat, *keys, "children", 3, "properties", "String")
         return Plot(
-            child=child, path=path, colormap=colormap, clim=clim, xlim=xlim, ylim=ylim
+            child=child,
+            path=path,
+            colormap=colormap,
+            clim=clim,
+            xlim=xlim,
+            ylim=ylim,
+            title=title,
+            xlabel=xlabel,
+            ylabel=ylabel,
         )
 
 
 def recurse_children(d, depth=0, max_depth=-1, types=[], keys=[]) -> list[Child]:
     if max_depth >= 0 and depth >= max_depth:
         return []
-    results = []
+    results: list[Child] = []
     if isinstance(d, dict):
         if "type" in d:
             tps = [*types, d["type"]]
@@ -132,17 +151,13 @@ def recurse_children(d, depth=0, max_depth=-1, types=[], keys=[]) -> list[Child]
             results.extend(
                 recurse_children(v, depth=depth + 1, types=tps, keys=[*keys, k])
             )
-
     elif isinstance(d, list):
         for ii, v in enumerate(d):
             results.extend(
                 recurse_children(v, depth=depth + 1, types=types, keys=[*keys, ii])
             )
 
-    if len(results) > 0:
-        return results
-    else:
-        return []
+    return results
 
 
 def recurse(key, dat, depth=0):
@@ -158,6 +173,38 @@ def recurse(key, dat, depth=0):
             recurse(f"[{ii}]", item, depth + 1)
     else:
         print(f"{'-' * depth} {key}: {type(dat)}")
+
+
+def search(
+    dat, content, keys: list = [], types: list[str] = []
+) -> list[tuple[list, list]]:
+    result = []
+    if isinstance(dat, dict):
+        if "type" in dat:
+            tps = [*types, dat["type"]]
+        else:
+            tps = types[:]
+        for k, v in dat.items():
+            result.extend(search(v, content, keys=[*keys, k], types=tps))
+        return result
+    elif isinstance(dat, np.ndarray):
+        return []
+    elif isinstance(dat, list):
+        for ii, item in enumerate(dat):
+            result.extend(search(item, content, keys=[*keys, ii], types=types))
+        return result
+    else:
+        if dat == content:
+            return [(keys, types)]
+        elif hasattr(dat, "__contains__"):
+            try:
+                if content in dat:
+                    return [(keys, types)]
+                return []
+            except Exception:
+                return []
+        else:
+            return []
 
 
 def get(dat, *keys):
@@ -190,6 +237,7 @@ def process(args: ProcessArgs, config: dict[str, Any] = {}):
             )
 
             data_children = recurse_children(mat, depth=0, max_depth=3)
+
             found_data = False
             for c in data_children:
                 if "axes" in c.types and "image" in c.types:
@@ -199,7 +247,7 @@ def process(args: ProcessArgs, config: dict[str, Any] = {}):
 
             print(file.name)
             if not found_data:
-                print(f"-> Did not find any 2d data in {file.name}")
+                logger.warning(f"-> Did not find any 2d data in {file.name}")
 
     colormap = args.colormap.strip("\"'")
     shape = None
@@ -221,7 +269,7 @@ def process(args: ProcessArgs, config: dict[str, Any] = {}):
     assert can_use_colormap or (colormap != "auto")
     assert shape is not None and total_extent is not None
 
-    total_image = np.sum([img[0].data for img in images], axis=0)
+    total_image = np.sum([img.child.data for img in images], axis=0)
 
     if args.interactive:
         percentiles = np.percentile(total_image, [2, 98])
@@ -244,10 +292,14 @@ def process(args: ProcessArgs, config: dict[str, Any] = {}):
         print("Canceled")
         return
 
+    figsize = (8, int((8 / shape[1]) * shape[0]))
+
     for ii, plot_data in enumerate(images):
         image = plot_data.child.data
-        fig, ax = plt.subplots(figsize=(12, 12))
-        ax.set_title(plot_data.path.name)
+        fig, ax = plt.subplots(figsize=figsize)
+        ax.set_title(plot_data.title)
+        ax.set_xlabel(plot_data.xlabel)
+        ax.set_ylabel(plot_data.ylabel)
         im = ax.imshow(
             image,
             cmap=plot_data.colormap
@@ -258,14 +310,15 @@ def process(args: ProcessArgs, config: dict[str, Any] = {}):
             extent=(*plot_data.xlim, *plot_data.ylim),
             origin=args.origin,
         )
-        fig.colorbar(im, ax=ax, location="right")
+
+        fig.colorbar(im, ax=ax, location="right", use_gridspec=False)
         fig.savefig(args.out_path / f"{plot_data.path.stem}.png")
         plt.close(fig)
 
         np.savetxt(args.out_path / f"{plot_data.path.stem}.csv", image, delimiter=",")
 
     np.savetxt(args.out_path / "Total Image.csv", total_image, delimiter=",")
-    fig, ax = plt.subplots(figsize=(12, 12))
+    fig, ax = plt.subplots(figsize=figsize)
     ax.set_title(f"Total Image ({min:.2g} - {max:.2g})")
     im = ax.imshow(
         total_image,
